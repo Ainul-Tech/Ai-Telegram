@@ -1,0 +1,4 @@
+pybit==5.11.0
+telethon==1.36.0
+python-dotenv==1.0.1
+flask==3.0.3
