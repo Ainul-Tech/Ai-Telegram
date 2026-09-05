@@ -1,9 +1,9 @@
 """Uji parser terhadap pesan asli dari 3 channel."""
-import sys, os
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+import os, sys
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from signal_parser import parse_signal, parse_sl_update
-import tests.fixtures as F
+import samples as F
 
 PASS = FAIL = 0
 

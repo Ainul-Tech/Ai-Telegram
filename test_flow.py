@@ -13,7 +13,7 @@ import os
 import sys
 import time
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 os.environ.update({
     "TG_API_ID": "1", "TG_API_HASH": "x", "TG_CHANNELS": "@a",
@@ -33,8 +33,8 @@ from config import cfg                        # noqa: E402
 from history import History                   # noqa: E402
 from signal_parser import parse_signal        # noqa: E402
 from trade_manager import TradeManager        # noqa: E402
-from tests.mock_bybit import MockSession      # noqa: E402
-import tests.fixtures as F                    # noqa: E402
+from mock_bybit import MockSession            # noqa: E402
+import samples as F                           # noqa: E402
 
 PASS = FAIL = 0
 

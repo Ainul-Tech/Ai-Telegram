@@ -29,7 +29,7 @@ logging.basicConfig(
 )
 log = logging.getLogger("main")
 
-from tests import fixtures as F
+import samples as F
 
 SAMPLES = [
     ("Global Crypto Research", F.GCR_SKR),

@@ -72,7 +72,9 @@ Pesan `Set stoploss 0.0214` **diterima** sebagai update SL posisi berjalan.
 | `dashboard.py` | Dashboard web (Flask + Chart.js) |
 | `main.py` | Listener Telegram |
 | `gen_session.py` | Buat session string untuk deploy cloud |
-| `tests/` | Fixture sinyal asli, mock Bybit, 2 suite tes |
+| `samples.py` | 4 sinyal contoh asli (dipakai `main.py --test` & tes) |
+| `mock_bybit.py` | Bybit tiruan untuk pengujian |
+| `test_parser.py` / `test_flow.py` | Suite tes |
 | `preflight.py` | Cek kesiapan akun Bybit & Telegram sebelum trial (read-only) |
 | `railway.json` | Konfigurasi deploy Railway (auto-restart) |
 | `login_web.py` | Halaman login Telegram via browser (dipakai sekali, lalu dihapus) |
