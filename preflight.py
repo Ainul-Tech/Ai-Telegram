@@ -80,7 +80,8 @@ def run_all(check_telegram: bool = True, exit_on_fail: bool = False):
         if cfg.testnet:
             warn("DRY_RUN mati + TESTNET — order sungguhan di testnet (uang mainan)")
         else:
-            err("DRY_RUN mati + LIVE — bot akan memakai UANG SUNGGUHAN")
+            warn("DRY_RUN mati + LIVE — bot memakai UANG SUNGGUHAN. "
+                 "Pastikan ini memang yang kamu inginkan.")
 
     # --- 3. Koneksi Bybit ----------------------------------------------------
     print(f"\n[3] Koneksi Bybit ({'TESTNET' if cfg.testnet else 'LIVE / MAINNET'})")
