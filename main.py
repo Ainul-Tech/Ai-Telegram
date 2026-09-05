@@ -83,11 +83,6 @@ async def amain() -> None:
         log.error("REQUIRE_CONFIRM=true tapi tidak ada terminal interaktif "
                   "(Railway/Docker). Semua sinyal akan dilewati. "
                   "Set REQUIRE_CONFIRM=false di Variables.")
-    if not cfg.session_string and not sys.stdin.isatty():
-        log.error("TG_SESSION_STRING kosong dan tidak ada terminal untuk OTP. "
-                  "Jalankan `python gen_session.py` di komputer sendiri dulu.")
-        sys.exit(1)
-
     # Pemeriksaan pra-terbang otomatis. Di cloud, logs ini satu-satunya
     # umpan balik yang kamu punya sebelum bot mulai bekerja.
     try:
@@ -189,11 +184,33 @@ async def amain() -> None:
     await tg.run_until_disconnected()
 
 
+def run_login_server():
+    """
+    Kalau TG_SESSION_STRING masih kosong, bot tidak bisa login Telegram.
+    Daripada crash, jalankan halaman login web supaya user bisa membuat
+    session string langsung dari browser. Setelah string diisi ke Variables
+    dan service di-redeploy, bot otomatis masuk mode trading.
+    """
+    import os
+    log.warning("=" * 60)
+    log.warning("TG_SESSION_STRING KOSONG — masuk MODE LOGIN.")
+    log.warning("Buka URL publik service ini di browser untuk login Telegram,")
+    log.warning("salin session string-nya, tempel ke Variables sebagai")
+    log.warning("TG_SESSION_STRING, lalu redeploy. Bot akan mulai trading.")
+    log.warning("=" * 60)
+    import login_web
+    port = int(os.getenv("PORT", "8080"))
+    login_web.app.run(host="0.0.0.0", port=port, debug=False)
+
+
 if __name__ == "__main__":
     if "--test" in sys.argv:
         run_parser_test()
     elif "--sync" in sys.argv:
         run_sync()
+    elif not cfg.session_string:
+        # Tidak ada sesi Telegram -> tampilkan halaman login, jangan trading
+        run_login_server()
     else:
         try:
             asyncio.run(amain())
