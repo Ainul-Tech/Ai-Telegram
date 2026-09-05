@@ -33,20 +33,36 @@ API_HASH = os.getenv("TG_API_HASH", "")
 app = Flask(__name__)
 
 # --- Event loop latar belakang ------------------------------------------
+# Telethon butuh SATU event loop yang hidup terus. Kita jalankan loop itu di
+# thread khusus, dan set sebagai loop aktif DI DALAM thread itu (penting:
+# kalau tidak, Telethon di thread request Flask tidak menemukan event loop).
 _loop = asyncio.new_event_loop()
-threading.Thread(target=_loop.run_forever, daemon=True).start()
 
 
-def run(coro, timeout=60):
+def _loop_runner():
+    asyncio.set_event_loop(_loop)
+    _loop.run_forever()
+
+
+threading.Thread(target=_loop_runner, daemon=True).start()
+
+
+def run(coro, timeout=90):
+    """Jalankan coroutine di loop latar belakang, dari thread mana pun."""
     return asyncio.run_coroutine_threadsafe(coro, _loop).result(timeout)
 
 
 state: dict = {"client": None, "phone": None, "hash": None}
 
 
+async def _make_client() -> TelegramClient:
+    # Dibuat di dalam _loop, jadi loop-nya sudah aktif di thread ini.
+    return TelegramClient(StringSession(), API_ID, API_HASH)
+
+
 def _client() -> TelegramClient:
     if state["client"] is None:
-        state["client"] = TelegramClient(StringSession(), API_ID, API_HASH, loop=_loop)
+        state["client"] = run(_make_client())
     return state["client"]
 
 
