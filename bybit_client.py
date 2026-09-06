@@ -92,6 +92,27 @@ class BybitClient:
                         return float(v)
         return 0.0
 
+    def available_usdt(self) -> float:
+        """
+        Saldo yang BELUM dipakai sebagai margin posisi lain (free balance).
+        Dipakai untuk sizing bertingkat: tiap posisi baru = persen dari sisa,
+        bukan dari equity total. Jadi total margin tak pernah melebihi saldo.
+        """
+        r = self.session.get_wallet_balance(accountType="UNIFIED", coin="USDT")
+        lst = r.get("result", {}).get("list", [])
+        if not lst:
+            return 0.0
+        coins = lst[0].get("coin", [])
+        for c in coins:
+            if c.get("coin") == "USDT":
+                # Urutan preferensi: saldo bebas dulu, baru fallback ke equity
+                for key in ("availableToWithdraw", "availableBalance",
+                            "free", "walletBalance", "equity"):
+                    v = c.get(key)
+                    if v not in (None, ""):
+                        return float(v)
+        return 0.0
+
     def last_price(self, symbol: str) -> float:
         r = self.session.get_tickers(category="linear", symbol=symbol)
         return float(r["result"]["list"][0]["lastPrice"])

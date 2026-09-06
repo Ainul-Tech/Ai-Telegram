@@ -140,23 +140,32 @@ class TradeManager:
         if equity <= 0:
             raise RuntimeError("Equity USDT 0 — cek akun / permission API")
 
+        # Margin = persen dari SISA SALDO (available), bukan dari equity total.
+        # Efeknya sizing bertingkat: posisi 1 ambil 25% dari saldo penuh,
+        # posisi 2 ambil 25% dari sisa, dst. Total margin tak pernah > saldo.
+        # Contoh $20: p1=5, p2=3.75, p3=2.81, ...
+        try:
+            available = self.client.available_usdt()
+        except Exception:
+            available = equity
+        if available <= 0:
+            available = equity
+
         entries = entries or sig.entries
         splits = splits or [1.0 / len(entries)] * len(entries)
-        # Entry efektif = rata-rata tertimbang porsi
         avg_entry = sum(e * w for e, w in zip(entries, splits)) / (sum(splits) or 1.0)
 
-        # Margin 10% equity, leverage 10x -> notional = 100% equity
-        margin = equity * (cfg.ENTRY_EQUITY_PERCENT / 100.0)
+        margin = available * (cfg.ENTRY_EQUITY_PERCENT / 100.0)
         notional = margin * cfg.LEVERAGE
         qty = notional / avg_entry
 
         sl_dist = abs(avg_entry - sig.stop_loss)
         info = {
             "equity": equity,
+            "available": available,
             "margin": margin,
             "notional": notional,
             "sl_percent": sl_dist / avg_entry * 100,
-            # Kerugian bila SL kena, dalam % equity
             "risk_if_sl": (qty * sl_dist) / equity * 100,
         }
         return qty, avg_entry, info
@@ -257,7 +266,7 @@ class TradeManager:
             "           dipakai: %s\n"
             "TP dipakai: %s   [TP3+ dibuang: %s]\n"
             "SL       : %s  (%.2f%% dari entry)\n"
-            "Equity   : %.2f USDT | Margin %.2f (%.0f%%) | Notional %.2f\n"
+            "Equity   : %.2f | Sisa saldo: %.2f | Margin %.2f (%.0f%% dari sisa) | Notional %.2f\n"
             "Qty      : %.8f | Rugi bila SL kena: %.2f%% equity\n%s",
             "=" * 64,
             sig.side, sig.symbol, channel or "-",
@@ -265,7 +274,7 @@ class TradeManager:
             sig.entries, entry_note,
             tps, sig.take_profits[cfg.TP_COUNT:] or "tidak ada",
             sig.stop_loss, info["sl_percent"],
-            info["equity"], info["margin"], cfg.ENTRY_EQUITY_PERCENT, info["notional"],
+            info["equity"], info["available"], info["margin"], cfg.ENTRY_EQUITY_PERCENT, info["notional"],
             qty, info["risk_if_sl"],
             "=" * 64,
         )

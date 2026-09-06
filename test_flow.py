@@ -308,6 +308,24 @@ tm.reconcile()
 check("posisi aktif sebelum force-close", had)
 check("reconcile menghapus posisi yg ditutup manual", "ABCUSDT" not in tm.active)
 
+# =========================================================================
+print("\n" + "=" * 70)
+print("SKENARIO K — sizing bertingkat: margin 25% dari SISA saldo")
+print("=" * 70)
+from signal_parser import Signal as _SK
+ms,cl,h,tm = build(equity=20.0, db="/tmp/test_flow_k.db")
+_used=[0.0]
+cl.available_usdt = lambda: 20.0 - _used[0]
+cl.equity_usdt = lambda: 20.0
+_sig = _SK(symbol="ABCUSDT",side="Buy",entries=[100.0],take_profits=[110,120],stop_loss=95.0)
+ms.set_price("ABCUSDT",100.0)
+expected=[5.00,3.75,2.81,2.11,1.58]
+for i,exp in enumerate(expected,1):
+    qty,ae,info=tm.compute_size(_sig,[100.0],[1.0])
+    check(f"posisi {i}: margin {exp} dari sisa", abs(info['margin']-exp)<0.01,
+          f"{info['margin']:.2f} vs {exp}")
+    _used[0]+=info['margin']
+
 print("\n" + "=" * 70)
 print(f"HASIL AKHIR: {PASS} pass, {FAIL} fail")
 print("=" * 70)
