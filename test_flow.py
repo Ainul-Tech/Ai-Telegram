@@ -258,6 +258,24 @@ if eo:
     check(f"notional menyesuaikan 5x (margin tetap 25% = $5, notional ~$25)",
           abs(notional - 25.0) < 1.0, f"${notional:.2f}")
 
+# =========================================================================
+print("\n" + "=" * 70)
+print("SKENARIO H — symbol tidak ada di Bybit (mis. coin cuma di Binance)")
+print("=" * 70)
+ms, cl, h, tm = build(equity=20.0, db="/tmp/test_flow_h.db")
+ms.invalid_symbols.add("BULLAUSDT")
+from signal_parser import Signal as _Sig
+bad_sym = _Sig(symbol="BULLAUSDT", side="Buy", entries=[0.5,0.48],
+               take_profits=[0.55,0.60], stop_loss=0.45, raw_leverage=50)
+crashed = False
+try:
+    tm.execute(bad_sym, "@test")
+except Exception:
+    crashed = True
+check("symbol invalid tidak membuat crash", not crashed)
+check("tidak ada order dikirim utk symbol invalid",
+      len([o for o in ms.orders if not o.get("reduceOnly")]) == 0)
+
 print("\n" + "=" * 70)
 print(f"HASIL AKHIR: {PASS} pass, {FAIL} fail")
 print("=" * 70)

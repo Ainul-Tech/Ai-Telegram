@@ -27,13 +27,27 @@ class BybitClient:
 
     # ------------------------------------------------------------------ util
     def instrument(self, symbol: str) -> dict | None:
-        """Ambil spesifikasi kontrak (tick size, qty step, leverage maks)."""
+        """
+        Ambil spesifikasi kontrak (tick size, qty step, leverage maks).
+        Kembalikan None kalau symbol tidak ada di Bybit (mis. coin cuma
+        listing di Binance). Bybit melempar InvalidRequestError 10001 untuk
+        symbol tak dikenal — itu ditangkap di sini supaya sinyal cukup
+        di-skip, bukan membuat handler crash.
+        """
         if symbol in self._instrument_cache:
             return self._instrument_cache[symbol]
 
-        r = self.session.get_instruments_info(category="linear", symbol=symbol)
+        try:
+            r = self.session.get_instruments_info(category="linear", symbol=symbol)
+        except Exception as e:
+            if "10001" in str(e) or "symbol invalid" in str(e).lower():
+                log.info("Symbol %s tidak ada di Bybit — dilewati.", symbol)
+                self._instrument_cache[symbol] = None
+                return None
+            raise
         lst = r.get("result", {}).get("list", [])
         if not lst:
+            self._instrument_cache[symbol] = None
             return None
 
         info = lst[0]

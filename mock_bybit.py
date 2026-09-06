@@ -19,6 +19,7 @@ class MockSession:
 
     def __init__(self, equity: float = 20.0, max_leverage: str = "50"):
         self.max_leverage = max_leverage
+        self.invalid_symbols = set()   # symbol yg dianggap tidak ada di Bybit
         self.equity = equity
         self.price: dict[str, float] = {}
         self.orders: list[dict] = []
@@ -126,6 +127,8 @@ class MockSession:
 
     # ------------------------------------------------------------- API ---
     def get_instruments_info(self, category, symbol):
+        if symbol in self.invalid_symbols:
+            raise Exception("params error: symbol invalid (ErrCode: 10001)")
         return {"result": {"list": [{
             "symbol": symbol, "status": "Trading",
             "priceFilter": {"tickSize": "0.000001"},
