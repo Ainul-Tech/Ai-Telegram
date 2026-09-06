@@ -50,7 +50,7 @@ _H_ENTRY = re.compile(
     re.IGNORECASE,
 )
 _H_TP = re.compile(
-    r"^\W*(take\s*-?\s*profit\s+targets?|take\s*-?\s*profit|targets?|tp)\b\s*:?",
+    r"^\W*(?:set\s+)?(take\s*-?\s*profit\s+targets?|take\s*-?\s*profit|targets?|tp\s*\d*)\b\s*:?",
     re.IGNORECASE,
 )
 _H_SL = re.compile(

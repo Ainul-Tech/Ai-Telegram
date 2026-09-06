@@ -149,17 +149,20 @@ async def amain() -> None:
              "Grup lain yang kamu ikuti diabaikan total.", len(entities))
 
     # ALLOW_OWN_MESSAGES=true membuat bot juga menangkap pesan yang kamu kirim
-    # sendiri (berguna untuk menguji dg mengetik sinyal di grup). Default false
-    # supaya pesanmu sendiri tidak sengaja tereksekusi sbg order.
+    # sendiri (berguna untuk menguji dg mengetik sinyal di grup). Default false.
     _allow_own = os.getenv("ALLOW_OWN_MESSAGES", "false").strip().lower() in ("1","true","yes")
-    _ev = events.NewMessage(chats=entities) if _allow_own else events.NewMessage(chats=entities, incoming=True)
 
-    @tg.on(_ev)
-    async def handler(event):
+    # Anti-duplikat: banyak channel mengirim sinyal lalu MENGEDITNYA (menambah
+    # chart, dll). Telethon memicu NewMessage utk pesan baru dan MessageEdited
+    # utk editan. Kita dengarkan KEDUANYA supaya sinyal yang diedit tetap
+    # tertangkap, tapi catat ID pesan yg sudah diproses agar tidak dieksekusi 2x.
+    _seen_msgs: set = set()
+
+    async def _process(event, is_edit: bool):
         text = event.message.message or ""
         ch_name = names.get(event.chat_id, str(event.chat_id))
 
-        # 1. Pesan susulan "Set stoploss X"
+        # 1. Pesan susulan "Set stoploss X" — selalu diproses (tidak dedup)
         upd = parse_sl_update(text)
         if upd:
             if not upd.symbol and event.message.reply_to:
@@ -179,13 +182,33 @@ async def amain() -> None:
         sig = parse_signal(text)
         if not sig:
             return
+
+        # Dedup: jangan eksekusi sinyal yang sama dua kali (new + edit)
+        key = (event.chat_id, event.message.id)
+        if key in _seen_msgs:
+            return
+        _seen_msgs.add(key)
+        if len(_seen_msgs) > 2000:
+            _seen_msgs.clear()  # jaga memori
+
         if not sig.is_valid():
             log.warning("Sinyal %s dari %s ditolak: %s",
                         sig.symbol, ch_name, sig.why_invalid())
             hist.log_signal(sig, ch_name, "INVALID", sig.why_invalid())
             return
-        log.info("Sinyal terdeteksi dari %s: %s %s", ch_name, sig.side, sig.symbol)
+        tag = " (dari editan)" if is_edit else ""
+        log.info("Sinyal terdeteksi dari %s: %s %s%s", ch_name, sig.side, sig.symbol, tag)
         await asyncio.to_thread(manager.execute, sig, ch_name)
+
+    _kw = dict(chats=entities) if _allow_own else dict(chats=entities, incoming=True)
+
+    @tg.on(events.NewMessage(**_kw))
+    async def handler_new(event):
+        await _process(event, is_edit=False)
+
+    @tg.on(events.MessageEdited(**_kw))
+    async def handler_edit(event):
+        await _process(event, is_edit=True)
 
     log.info("Bot berjalan. Dashboard: python dashboard.py. Ctrl+C untuk berhenti.")
 
