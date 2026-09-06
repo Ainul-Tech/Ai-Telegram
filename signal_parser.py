@@ -243,7 +243,16 @@ def parse_signal(text: str) -> Signal | None:
 
     entries = sec["entry"]
     tps = sec["tp"]
-    sl = sec["sl"][0] if sec["sl"] else None
+    # SL: kalau sinyal memberi beberapa nilai (rentang), pilih yang PALING AMAN
+    # (paling jauh dari entry): untuk LONG ambil terendah, untuk SHORT tertinggi.
+    # Kalau cuma 1 nilai, pakai itu.
+    if sec["sl"]:
+        if side == "Buy":
+            sl = min(sec["sl"])
+        else:
+            sl = max(sec["sl"])
+    else:
+        sl = None
 
     # Buang duplikat sambil menjaga urutan
     def dedupe(xs):

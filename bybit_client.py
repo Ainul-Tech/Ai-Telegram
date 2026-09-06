@@ -202,21 +202,44 @@ class BybitClient:
         return self.session.place_order(**params)
 
     def set_stop_loss(self, symbol: str, price: float) -> dict:
-        return self.session.set_trading_stop(
-            category="linear",
-            symbol=symbol,
-            stopLoss=self.round_price(symbol, price),
-            slTriggerBy="MarkPrice",
-            tpslMode="Full",
-            positionIdx=0,
-        )
+        """
+        Pasang SL pada posisi. Tidak memaksa tpslMode: kalau posisi sudah
+        dalam mode Partial (karena TP dipasang sbg order reduce-only terpisah),
+        memaksa tpslMode="Full" akan DITOLAK Bybit -> SL gagal terpasang diam2.
+        Membiarkan tpslMode kosong = Bybit pakai mode default posisi (aman).
+        Kalau gagal karena konflik mode, coba lagi dg mode eksplisit.
+        """
+        p = self.round_price(symbol, price)
+        try:
+            return self.session.set_trading_stop(
+                category="linear", symbol=symbol,
+                stopLoss=p, slTriggerBy="MarkPrice", positionIdx=0,
+            )
+        except Exception as e:
+            msg = str(e).lower()
+            # Kalau ditolak krn mode, coba mode Partial dg slSize=seluruh posisi
+            if "tpslmode" in msg or "10001" in msg:
+                log.warning("set_stop_loss %s: retry dg mode Partial (%s)", symbol, e)
+                pos = self.position(symbol)
+                size = self.round_qty(symbol, float(pos["size"])) if pos else None
+                if size:
+                    return self.session.set_trading_stop(
+                        category="linear", symbol=symbol,
+                        stopLoss=p, slTriggerBy="MarkPrice",
+                        tpslMode="Partial", slSize=size, positionIdx=0,
+                    )
+            raise
 
     def remove_stop_loss(self, symbol: str) -> dict:
         """Hapus SL yang sedang terpasang pada posisi (set ke 0)."""
-        return self.session.set_trading_stop(
-            category="linear", symbol=symbol,
-            stopLoss="0", tpslMode="Full", positionIdx=0,
-        )
+        try:
+            return self.session.set_trading_stop(
+                category="linear", symbol=symbol,
+                stopLoss="0", positionIdx=0,
+            )
+        except Exception as e:
+            log.warning("remove_stop_loss %s: %s", symbol, e)
+            return {}
 
     def cancel_order(self, symbol: str, order_id: str) -> dict:
         return self.session.cancel_order(

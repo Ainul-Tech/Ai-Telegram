@@ -408,9 +408,21 @@ class TradeManager:
             used = st.get("entries_used") or sig.entries
             entry_px = float(pos.get("avgPrice") or 0) or sum(used) / len(used)
 
-            # ---- posisi bertambah → pasang ulang TP [6] ----------------
+            # ---- posisi bertambah (baru terisi) → pastikan SL + pasang TP ----
             if size > st["max_size_seen"] + 1e-12:
                 st["max_size_seen"] = size
+                # PENTING: SL yang ditempel pada order limit sering TIDAK
+                # tersimpan Bybit selama posisi belum terisi (SL itu atribut
+                # posisi, bukan order). Jadi begitu posisi benar-benar terisi,
+                # kita pasang ULANG SL untuk memastikan ia benar-benar aktif.
+                if sig.stop_loss and not st.get("sl_confirmed"):
+                    try:
+                        self.client.set_stop_loss(symbol, sig.stop_loss)
+                        st["sl_confirmed"] = True
+                        log.info("SL %s dikonfirmasi terpasang di %s (setelah posisi terisi)",
+                                 symbol, sig.stop_loss)
+                    except Exception as e:
+                        log.error("Gagal konfirmasi SL %s: %s", symbol, e)
                 self._place_tps(symbol, sig, tps, size, st["tag"])
                 st["tp_placed"] = True
 
