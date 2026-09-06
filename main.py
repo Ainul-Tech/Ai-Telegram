@@ -9,6 +9,7 @@ main.py — Titik masuk bot.
 from __future__ import annotations
 
 import asyncio
+import os
 import logging
 import sys
 
@@ -147,7 +148,13 @@ async def amain() -> None:
     log.info("FILTER AKTIF: hanya %d channel di atas yang dibaca. "
              "Grup lain yang kamu ikuti diabaikan total.", len(entities))
 
-    @tg.on(events.NewMessage(chats=entities))
+    # ALLOW_OWN_MESSAGES=true membuat bot juga menangkap pesan yang kamu kirim
+    # sendiri (berguna untuk menguji dg mengetik sinyal di grup). Default false
+    # supaya pesanmu sendiri tidak sengaja tereksekusi sbg order.
+    _allow_own = os.getenv("ALLOW_OWN_MESSAGES", "false").strip().lower() in ("1","true","yes")
+    _ev = events.NewMessage(chats=entities) if _allow_own else events.NewMessage(chats=entities, incoming=True)
+
+    @tg.on(_ev)
     async def handler(event):
         text = event.message.message or ""
         ch_name = names.get(event.chat_id, str(event.chat_id))
@@ -181,6 +188,29 @@ async def amain() -> None:
         await asyncio.to_thread(manager.execute, sig, ch_name)
 
     log.info("Bot berjalan. Dashboard: python dashboard.py. Ctrl+C untuk berhenti.")
+
+    # --- Heartbeat: bukti bot hidup, tiap HEARTBEAT_SECONDS detik ---
+    # Berguna karena "Got difference" hanya muncul saat channel ramai.
+    # Heartbeat menulis satu baris status terlepas dari aktivitas channel.
+    import time as _time
+    _hb = int(os.getenv("HEARTBEAT_SECONDS", "60"))
+    _t0 = _time.time()
+
+    async def _heartbeat():
+        while True:
+            await asyncio.sleep(_hb)
+            try:
+                up = int(_time.time() - _t0)
+                h, m = up // 3600, (up % 3600) // 60
+                n_pos = len(manager.active)
+                # Cek koneksi Telegram masih hidup
+                conn = "tersambung" if tg.is_connected() else "TERPUTUS"
+                log.info("HEARTBEAT | hidup %dj %dm | Telegram %s | posisi aktif %d/%d | %d channel",
+                         h, m, conn, n_pos, cfg.MAX_CONCURRENT_POSITIONS, len(entities))
+            except Exception as e:
+                log.warning("Heartbeat error: %s", e)
+
+    asyncio.create_task(_heartbeat())
     await tg.run_until_disconnected()
 
 
@@ -191,7 +221,6 @@ def run_login_server():
     session string langsung dari browser. Setelah string diisi ke Variables
     dan service di-redeploy, bot otomatis masuk mode trading.
     """
-    import os
     log.warning("=" * 60)
     log.warning("TG_SESSION_STRING KOSONG — masuk MODE LOGIN.")
     log.warning("Buka URL publik service ini di browser untuk login Telegram,")
