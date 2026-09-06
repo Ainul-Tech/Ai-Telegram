@@ -54,7 +54,7 @@ _H_TP = re.compile(
     re.IGNORECASE,
 )
 _H_SL = re.compile(
-    r"^\W*(stop\s+targets?|stop\s*-?\s*loss|stoploss|sl)\b\s*:?",
+    r"^\W*(stop\s+targets?|stop\s*-?\s*loss|stoploss|stop|sl)\b\s*:?",
     re.IGNORECASE,
 )
 # Baris yang MENGHENTIKAN pengumpulan angka (bukan bagian dari entry/TP/SL)

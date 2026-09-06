@@ -110,3 +110,30 @@ Position: SHORT
 Entries: 1.200 - 1.250
 Targets: 1.150, 1.100, 1.050
 Stop Loss: 1.300"""
+
+
+CM_DOGE = """Crypto Musk
+Diteruskan dari VIP Crypto Musk
+Long
+
+Price Action : Nova Strategy
+
+#DOGE/USDT
+
+Entry :
+
+1) 0.085730
+2) 0.083158
+
+Targets :
+
+1) 0.086222
+2) 0.088013
+3) 0.089804
+4) 0.091595
+
+Stop : 0.080329
+
+Leverage : 10x (isolated)
+
+@crypto_musk1"""

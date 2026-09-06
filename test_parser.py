@@ -75,5 +75,14 @@ print(f"  -> SHORT: {sh.symbol} entries={sh.entries} tp={sh.take_profits} sl={sh
 check("SHORT valid dikenali", sh is not None and sh.is_valid() and sh.side == "Sell",
       sh.why_invalid() if sh else None)
 
+print("\n=== 8. Crypto Musk (#DOGE, format 'Stop :') ===")
+s = parse_signal(F.CM_DOGE)
+print(f"  -> {s.symbol} {s.side} entries={s.entries} tp={s.take_profits} sl={s.stop_loss}")
+check("symbol DOGEUSDT", s.symbol == "DOGEUSDT", s.symbol)
+check("entries [0.08573, 0.083158]", s.entries == [0.08573, 0.083158], s.entries)
+check("tp 4 target tanpa SL nyasar", s.take_profits == [0.086222,0.088013,0.089804,0.091595], s.take_profits)
+check("sl 0.080329 (dari 'Stop :')", s.stop_loss == 0.080329, s.stop_loss)
+check("valid", s.is_valid(), s.why_invalid())
+
 print(f"\n{'='*50}\nHASIL: {PASS} pass, {FAIL} fail\n{'='*50}")
 sys.exit(1 if FAIL else 0)
