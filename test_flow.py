@@ -276,6 +276,38 @@ check("symbol invalid tidak membuat crash", not crashed)
 check("tidak ada order dikirim utk symbol invalid",
       len([o for o in ms.orders if not o.get("reduceOnly")]) == 0)
 
+# =========================================================================
+print("\n" + "=" * 70)
+print("SKENARIO I — logika chase entry (harga pasar vs info entry)")
+print("=" * 70)
+from signal_parser import Signal as _S
+def _sig(): return _S(symbol="ABCUSDT",side="Buy",entries=[100.0,98.0],
+                      take_profits=[110.0,120.0],stop_loss=95.0,raw_leverage=50)
+for px, expect, desc in [
+    (97.0, 98.0,  "pasar murah -> entry info terdekat (98)"),
+    (100.5,100.5, "lebih mahal 0.5% (<=1%) -> kejar harga pasar"),
+    (102.0,100.0, "lebih mahal 2% (>1%) -> tetap entry info (100)"),
+]:
+    ms2,cl2,h2,tm2 = build(equity=100.0, db="/tmp/test_flow_i.db")
+    ms2.set_price("ABCUSDT",px)
+    e,sp,note = tm2.select_entries(_sig())
+    check(f"{desc}", abs(e[0]-expect)<1e-9, f"{e[0]} vs {expect}")
+
+print("\n" + "=" * 70)
+print("SKENARIO J — reconcile mendeteksi force-close manual")
+print("=" * 70)
+ms,cl,h,tm = build(equity=100.0, db="/tmp/test_flow_j.db")
+ms.set_price("ABCUSDT",99.0)
+tm.execute(_sig(),"@t")
+ms.set_price("ABCUSDT",98.0)
+time.sleep(1.2)
+had = "ABCUSDT" in tm.active
+for st in tm.active.values(): st["max_size_seen"]=max(st.get("max_size_seen",0),1.0)
+ms.positions.pop("ABCUSDT",None)   # user tutup manual di Bybit
+tm.reconcile()
+check("posisi aktif sebelum force-close", had)
+check("reconcile menghapus posisi yg ditutup manual", "ABCUSDT" not in tm.active)
+
 print("\n" + "=" * 70)
 print(f"HASIL AKHIR: {PASS} pass, {FAIL} fail")
 print("=" * 70)

@@ -61,6 +61,10 @@ class Config:
     #   "first"   - hanya entry pertama yang tertulis di sinyal
     #   "split"   - semua entry, dibagi rata (perilaku lama)
     ENTRY_MODE: str = os.getenv("ENTRY_MODE", "nearest").strip().lower()
+    # Kalau harga pasar LEBIH MAHAL dari entry (utk LONG) tapi selisihnya <= nilai
+    # ini (persen), bot mengejar: entry = harga pasar saat itu. Kalau selisih lebih
+    # besar, entry tetap pakai harga info sinyal (limit, tunggu harga turun).
+    ENTRY_CHASE_MAX_PERCENT: float = _float("ENTRY_CHASE_MAX_PERCENT", 1.0)
     ENTRY_SPLIT: list[float] = field(default_factory=lambda: [0.5, 0.5])
 
     # [6] Hanya TP1 dan TP2 dipakai, masing-masing 50%. TP3/TP4 diabaikan.
@@ -86,7 +90,7 @@ class Config:
         default_factory=lambda: [s.upper() for s in _list("SYMBOL_WHITELIST")]
     )
     # Dengan notional 100% equity per posisi, lebih dari 1 posisi = eksposur >100%
-    MAX_CONCURRENT_POSITIONS: int = _int("MAX_CONCURRENT_POSITIONS", 1)
+    MAX_CONCURRENT_POSITIONS: int = _int("MAX_CONCURRENT_POSITIONS", 5)
     POLL_SECONDS: int = _int("POLL_SECONDS", 5)
     ENTRY_TIMEOUT_HOURS: float = _float("ENTRY_TIMEOUT_HOURS", 12.0)
 

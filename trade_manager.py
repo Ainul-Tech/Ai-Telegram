@@ -84,7 +84,14 @@ class TradeManager:
             tot = sum(splits) or 1.0
             return sig.entries, [x / tot for x in splits], "semua entry dibagi rata"
 
-        # mode "nearest": satu order saja, di entry terdekat dengan harga pasar
+        # mode "nearest": satu order saja. Logika lengkap sesuai spesifikasi:
+        #  1) pilih entry sinyal yang paling dekat harga pasar
+        #  2) bandingkan harga pasar dg entry terpilih:
+        #     - pasar <= entry (harga lebih murah/sama)  -> pakai entry info (limit)
+        #     - pasar > entry (harga lebih mahal):
+        #         * selisih > ENTRY_CHASE_MAX_PERCENT -> tetap pakai entry info (limit,
+        #           tunggu harga turun; kemungkinan tidak terisi -> aman)
+        #         * selisih <= ENTRY_CHASE_MAX_PERCENT -> kejar: entry = harga pasar
         try:
             last = self.client.last_price(sig.symbol)
         except Exception as e:
@@ -93,10 +100,37 @@ class TradeManager:
 
         chosen = min(sig.entries, key=lambda e: abs(e - last))
         others = [e for e in sig.entries if e != chosen]
-        return [chosen], [1.0], (
-            f"entry terdekat harga pasar {last:.8f} -> {chosen} "
-            f"(diabaikan: {others})"
-        )
+
+        if sig.side == "Buy":
+            # Untuk LONG: "lebih mahal" = harga pasar di ATAS entry
+            if last <= chosen:
+                note = (f"harga pasar {last:.8f} <= entry {chosen} -> "
+                        f"pakai entry info (limit). diabaikan: {others}")
+                return [chosen], [1.0], note
+            diff_pct = (last - chosen) / chosen * 100
+            if diff_pct > cfg.ENTRY_CHASE_MAX_PERCENT:
+                note = (f"harga pasar {last:.8f} lebih mahal {diff_pct:.2f}% "
+                        f"(> {cfg.ENTRY_CHASE_MAX_PERCENT}%) -> tetap entry info {chosen} "
+                        f"(limit, tunggu turun)")
+                return [chosen], [1.0], note
+            note = (f"harga pasar {last:.8f} lebih mahal {diff_pct:.2f}% "
+                    f"(<= {cfg.ENTRY_CHASE_MAX_PERCENT}%) -> KEJAR di harga pasar {last:.8f}")
+            return [last], [1.0], note
+        else:
+            # Untuk SHORT: "lebih mahal untuk kita" = harga pasar di BAWAH entry
+            if last >= chosen:
+                note = (f"harga pasar {last:.8f} >= entry {chosen} -> "
+                        f"pakai entry info (limit). diabaikan: {others}")
+                return [chosen], [1.0], note
+            diff_pct = (chosen - last) / chosen * 100
+            if diff_pct > cfg.ENTRY_CHASE_MAX_PERCENT:
+                note = (f"harga pasar {last:.8f} lebih rendah {diff_pct:.2f}% "
+                        f"(> {cfg.ENTRY_CHASE_MAX_PERCENT}%) -> tetap entry info {chosen} "
+                        f"(limit, tunggu naik)")
+                return [chosen], [1.0], note
+            note = (f"harga pasar {last:.8f} lebih rendah {diff_pct:.2f}% "
+                    f"(<= {cfg.ENTRY_CHASE_MAX_PERCENT}%) -> KEJAR di harga pasar {last:.8f}")
+            return [last], [1.0], note
 
     # --------------------------------------------------------- sizing [5]
     def compute_size(self, sig: Signal,
@@ -128,6 +162,36 @@ class TradeManager:
         return qty, avg_entry, info
 
     # ------------------------------------------------------------ filters
+    def reconcile(self) -> None:
+        """
+        Samakan daftar posisi internal bot dengan kondisi NYATA di Bybit.
+        Kalau kamu force-close posisi manual di Bybit, entri di self.active
+        untuk symbol itu dihapus, order sisa (TP/SL) dibatalkan, monitornya
+        berhenti sendiri. Dipanggil sebelum tiap sinyal & berkala oleh monitor.
+        """
+        with self._lock:
+            symbols = list(self.active.keys())
+        for sym in symbols:
+            try:
+                pos = self.client.position(sym)
+            except Exception:
+                continue  # jangan hapus kalau gagal cek (bisa jaringan)
+            st = self.active.get(sym)
+            if not st:
+                continue
+            # Posisi hilang di Bybit padahal bot pernah melihatnya terisi
+            if not pos and st.get("max_size_seen", 0) > 0:
+                log.info("RECONCILE: posisi %s tidak ada lagi di Bybit "
+                         "(kemungkinan ditutup manual). Membersihkan.", sym)
+                try:
+                    self.client.cancel_all(sym)
+                except Exception:
+                    pass
+                self.hist.update_signal(st["sid"], "CLOSED_MANUAL",
+                                        "ditutup di Bybit / reconcile")
+                with self._lock:
+                    self.active.pop(sym, None)
+
     def pre_checks(self, sig: Signal) -> str | None:
         if self.halted:
             return "bot dalam status HALTED (circuit breaker)"
@@ -142,11 +206,14 @@ class TradeManager:
         if spec.get("status") != "Trading":
             return f"{sig.symbol} berstatus {spec.get('status')}"
 
+        # Samakan dulu dg kondisi nyata Bybit (tangani force-close manual)
+        self.reconcile()
+
         with self._lock:
             if sig.symbol in self.active:
                 return f"sudah ada posisi/order aktif untuk {sig.symbol}"
             if len(self.active) >= cfg.MAX_CONCURRENT_POSITIONS:
-                return "batas posisi bersamaan tercapai"
+                return f"batas {cfg.MAX_CONCURRENT_POSITIONS} posisi bersamaan tercapai"
         # Tidak ada pengecekan slippage — entry mengikuti harga sinyal apa adanya.
 
         # Opsional: tolak sinyal dengan SL sangat jauh (kerugian per trade membengkak)
